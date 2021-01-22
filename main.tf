@@ -114,10 +114,11 @@ resource "aws_instance" "example_ec2_instance" {
   }
 }
 
-#####################################
-# security group to allow port 8080 #
-# to be open on EC2 host            #
-#####################################
+########################################
+# security group to allow port 22 & 80 #
+# to be open on EC2 host, and allow    #
+# all outbound traffic                 #
+########################################
 resource "aws_security_group" "example_ec2_instance_grp" {
   name   = "terraform-example-instance-grp"
   vpc_id = aws_vpc.main.id
