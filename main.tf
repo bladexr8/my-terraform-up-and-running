@@ -97,14 +97,13 @@ resource "aws_instance" "example_ec2_instance" {
   instance_type          = var.default_ec2_instance_type
   vpc_security_group_ids = [aws_security_group.example_ec2_instance_grp.id]
   subnet_id              = aws_subnet.public_a.id
+  key_name               = var.default_ec2_instance_key
 
   user_data = <<-EOF
-                #! /bin/bash
-                sudo apt-get update
-		            sudo apt-get install -y apache2
-		            sudo systemctl start apache2
-		            sudo systemctl enable apache2
-		            echo "<h1>Deployed via Terraform</h1>" | sudo tee /var/www/html/index.html
+                #!/bin/bash
+                    sudo yum update -y
+                    sudo yum install nginx -y 
+                    sudo service nginx start
               EOF
 
   tags = {
@@ -126,4 +125,12 @@ resource "aws_security_group" "example_ec2_instance_grp" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  ingress {
+    protocol    = "tcp"
+    from_port   = 22
+    to_port     = 22
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
 }

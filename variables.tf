@@ -21,3 +21,7 @@ variable "default_ec2_instance_type" {
   type        = string
   default     = "t2.micro"
 }
+
+variable "default_ec2_instance_key" {
+  default = "spm-tf-default-ec2-key-pair"
+}
