@@ -31,7 +31,7 @@ data "aws_ami" "amazon_linux" {
 # VPC and Internet Gateway #
 ############################
 resource "aws_vpc" "main" {
-  cidr_block           = "10.1.0.0/16"
+  cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
 
@@ -54,7 +54,7 @@ resource "aws_internet_gateway" "main" {
 # public_a Subnet               #
 #################################
 resource "aws_subnet" "public_a" {
-  cidr_block              = "10.1.1.0/24"
+  cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = true
   vpc_id                  = aws_vpc.main.id
   availability_zone       = "${data.aws_region.current.name}a"
@@ -101,9 +101,12 @@ resource "aws_instance" "example_ec2_instance" {
 
   user_data = <<-EOF
                 #!/bin/bash
-                    sudo yum update -y
-                    sudo yum install nginx -y 
-                    sudo service nginx start
+                yum update -y
+                yum install httpd -y
+                service httpd start
+                chkconfig httpd on
+                cd /var/www/html
+                echo "<html><h1>Hello, Welcome To My Terraform Provisioned Webpage!</h1></html>" > index.html
               EOF
 
   tags = {
@@ -120,8 +123,8 @@ resource "aws_security_group" "example_ec2_instance_grp" {
   vpc_id = aws_vpc.main.id
 
   ingress {
-    from_port   = var.server_port
-    to_port     = var.server_port
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -132,5 +135,15 @@ resource "aws_security_group" "example_ec2_instance_grp" {
     to_port     = 22
     cidr_blocks = ["0.0.0.0/0"]
   }
-  
+
+  # replace default egress rule removed
+  # by Terraform to allow all outbound
+  # traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
 }
