@@ -135,7 +135,7 @@ resource "aws_route" "public_internet_access_b" {
 # all outbound traffic                 #
 ########################################
 resource "aws_security_group" "example_ec2_instance_grp" {
-  name   = "terraform-example-instance-grp"
+  name   = "${local.prefix}-ec2-instance-grp"
   vpc_id = aws_vpc.main.id
 
   ingress {
@@ -206,7 +206,7 @@ resource "aws_autoscaling_group" "example_ec2_asg" {
 
   tag {
     key                 = "Name"
-    value               = "terraform-example-ec2-asg"
+    value               = "${local.prefix}-ec2-asg"
     propagate_at_launch = true
   }
 }
@@ -215,7 +215,7 @@ resource "aws_autoscaling_group" "example_ec2_asg" {
 # Application Load Balancer #
 #############################
 resource "aws_lb" "example_alb" {
-  name               = "terraform-example-alb"
+  name               = "${local.prefix}-alb"
   load_balancer_type = "application"
   subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
   security_groups    = [aws_security_group.example_alb_grp.id]
@@ -245,7 +245,7 @@ resource "aws_alb_listener" "http" {
 # ALB Security Group #
 ######################
 resource "aws_security_group" "example_alb_grp" {
-  name   = "terraform-example-alb-grp"
+  name   = "${local.prefix}-alb-sec-grp"
   vpc_id = aws_vpc.main.id
 
   ingress {
@@ -270,7 +270,7 @@ resource "aws_security_group" "example_alb_grp" {
 # ALB Target Group #
 ####################
 resource "aws_lb_target_group" "example_asg_target_grp" {
-  name     = "terraform-example-alb-target-grp"
+  name     = "${local.prefix}-alb-target-grp"
   port     = var.http_server_port
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
