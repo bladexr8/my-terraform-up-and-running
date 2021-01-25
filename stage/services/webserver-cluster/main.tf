@@ -17,6 +17,28 @@ locals {
 # get data for current AWS region
 data "aws_region" "current" {}
 
+# VPC information
+data "terraform_remote_state" "vpc" {
+  backend = "s3"
+
+  config = {
+    bucket = "spm-terraform-up-and-running-state"
+    key    = "stage/vpc/terraform.tfstate"
+    region = "us-east-2"
+  }
+}
+
+# database information
+data "terraform_remote_state" "db" {
+  backend = "s3"
+
+  config = {
+    bucket = "spm-terraform-up-and-running-state"
+    key    = "stage/data-stores/mysql/terraform.tfstate"
+    region = "us-east-2"
+  }
+}
+
 # filter AMI's to get Amazon Linux 2 AMI
 data "aws_ami" "amazon_linux" {
   most_recent = true
@@ -35,7 +57,7 @@ data "aws_ami" "amazon_linux" {
 ########################################
 resource "aws_security_group" "example_ec2_instance_grp" {
   name   = "${local.prefix}-ec2-instance-grp"
-  vpc_id = aws_vpc.main.id
+  vpc_id = data.terraform_remote_state.vpc.outputs.vpc_id
 
   ingress {
     from_port   = var.http_server_port
@@ -63,6 +85,18 @@ resource "aws_security_group" "example_ec2_instance_grp" {
 
 }
 
+#################################
+# Template for User Data Script #
+#################################
+data "template_file" "user_data" {
+  template = file("user-data.sh")
+
+  vars = {
+    db_address = data.terraform_remote_state.db.outputs.address
+    db_port    = data.terraform_remote_state.db.outputs.port
+  }
+}
+
 ##############################
 # EC2 Launch Configuration   #
 # for use by an Auto Scaling #
@@ -73,15 +107,17 @@ resource "aws_launch_configuration" "example_ec2_launch_conf" {
   instance_type   = var.default_ec2_instance_type
   security_groups = [aws_security_group.example_ec2_instance_grp.id]
 
-  user_data = <<-EOF
-                #!/bin/bash
-                yum update -y
-                yum install httpd -y
-                service httpd start
-                chkconfig httpd on
-                cd /var/www/html
-                echo "<html><h1>Hello, Welcome To My Terraform Provisioned Webpage!</h1></html>" > index.html
-              EOF
+  user_data = data.template_file.user_data.rendered
+
+  #<<-EOF
+  #!/bin/bash
+  #  yum update -y
+  #  yum install httpd -y
+  #  service httpd start
+  #  chkconfig httpd on
+  #  cd /var/www/html
+  #  echo "<html><h1>Hello, Welcome To My Terraform Provisioned Webpage!</h1><br /><p>Database: ${data.terraform_remote_state.db.outputs.address}</p><br /><p>Port: ${data.terraform_remote_state.db.outputs.port}</p></html>" > index.html
+  #EOF
 
   # Required when using a launch configuration with an auto scaling group
   # https://www.terraform.io/docs/providers/aws/r/launch_configuration.html
@@ -95,7 +131,8 @@ resource "aws_launch_configuration" "example_ec2_launch_conf" {
 ##########################
 resource "aws_autoscaling_group" "example_ec2_asg" {
   launch_configuration = aws_launch_configuration.example_ec2_launch_conf.name
-  vpc_zone_identifier  = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+  vpc_zone_identifier = [data.terraform_remote_state.vpc.outputs.public_subnet_a_id,
+  data.terraform_remote_state.vpc.outputs.public_subnet_b_id]
 
   target_group_arns = [aws_lb_target_group.example_asg_target_grp.arn]
   health_check_type = "ELB"
@@ -116,8 +153,9 @@ resource "aws_autoscaling_group" "example_ec2_asg" {
 resource "aws_lb" "example_alb" {
   name               = "${local.prefix}-alb"
   load_balancer_type = "application"
-  subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
-  security_groups    = [aws_security_group.example_alb_grp.id]
+  subnets = [data.terraform_remote_state.vpc.outputs.public_subnet_a_id,
+  data.terraform_remote_state.vpc.outputs.public_subnet_b_id]
+  security_groups = [aws_security_group.example_alb_grp.id]
 }
 
 ################
@@ -145,7 +183,7 @@ resource "aws_alb_listener" "http" {
 ######################
 resource "aws_security_group" "example_alb_grp" {
   name   = "${local.prefix}-alb-sec-grp"
-  vpc_id = aws_vpc.main.id
+  vpc_id = data.terraform_remote_state.vpc.outputs.vpc_id
 
   ingress {
     from_port   = var.http_server_port
@@ -172,7 +210,7 @@ resource "aws_lb_target_group" "example_asg_target_grp" {
   name     = "${local.prefix}-alb-target-grp"
   port     = var.http_server_port
   protocol = "HTTP"
-  vpc_id   = aws_vpc.main.id
+  vpc_id   = data.terraform_remote_state.vpc.outputs.vpc_id
 
   health_check {
     path                = "/"
